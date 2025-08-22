@@ -1,20 +1,43 @@
-from django.shortcuts import render
 from django.http import JsonResponse
-
-from json import JSONEncoder
 from django.views.decorators.csrf import csrf_exempt
-from web.models import User, Token, Expense, Income
+from web.models import User, Expense
 from datetime import datetime
+from json import JSONEncoder
 
-# Create your views here.
 @csrf_exempt
 def submit_expense(request):
-    """ user submit request an expense """
+    """ user submits an expense """
 
-    #TODO: validate data: user, token, amount may have a wrong value
-    this_token = request.POST['token']
-    this_user = User.objects.filter(token__token = this_token)
-    now = datetime.noe()
-    Expense.objects.Create(user = this_user, amount = request.POST['amount']
-    , text = request.POST['text'], date = now)
-    return JsonResponse({'status':'ok'}, encoder=JSONEncoder)
+    try:
+        token = request.POST.get('token')
+        text = request.POST.get('text')
+        amount = request.POST.get('amount')
+
+        # validate token
+        user = User.objects.filter(token__token=token).first()
+        if not user:
+            return JsonResponse({'status': 'error', 'message': 'Invalid token'}, status=400)
+
+        # validate amount
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid amount'}, status=400)
+
+        if 'date' not in request.POST:
+            now = datetime.now()
+        else:
+            date = request.POST.get('date')
+
+        Expense.objects.create(
+            user=user,
+            amount=amount,
+            text=text,
+            date=now
+        )
+
+        return JsonResponse({'status': 'ok'}, encoder=JSONEncoder)
+
+    except Exception as e:
+        # log error for debugging
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
